@@ -12,9 +12,9 @@
     </button>
   </div>
 
-  <form x-show="open" x-cloak method="post" action="{{ url_for('projects.create') }}"
+  <form x-show="open" x-cloak method="post" action="{% url 'project_create' %}"
         class="bg-white border border-slate-200 rounded-xl p-5 mb-6 grid sm:grid-cols-3 gap-4">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% csrf_token %}
     <div class="sm:col-span-1">
       <label class="block text-sm font-medium mb-1">Название</label>
       <input name="name" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -35,23 +35,23 @@
   {% if projects %}
   <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for p in projects %}
-    <a href="{{ url_for('projects.detail', project_id=p.id) }}"
+    <a href="{% url 'project_detail' p.id %}"
        class="block bg-white border border-slate-200 rounded-xl p-5 hover:border-brand hover:shadow-sm transition">
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-medium px-2 py-0.5 rounded-full
-              {{ 'bg-emerald-100 text-emerald-700' if p.status=='active'
-                 else 'bg-amber-100 text-amber-700' if p.status=='on_hold'
-                 else 'bg-slate-100 text-slate-600' }}">
-          {{ {'active':'В работе','on_hold':'На паузе','done':'Завершён'}[p.status] }}
+              {% if p.status == 'active' %}bg-emerald-100 text-emerald-700
+              {% elif p.status == 'on_hold' %}bg-amber-100 text-amber-700
+              {% else %}bg-slate-100 text-slate-600{% endif %}">
+          {{ p.get_status_display }}
         </span>
-        {% if p.deadline %}<span class="text-xs text-slate-400">до {{ p.deadline.strftime('%d.%m.%Y') }}</span>{% endif %}
+        {% if p.deadline %}<span class="text-xs text-slate-400">до {{ p.deadline|date:"d.m.Y" }}</span>{% endif %}
       </div>
       <h3 class="font-semibold text-slate-900">{{ p.name }}</h3>
-      <p class="text-sm text-slate-500">{{ p.client_name or 'Клиент не указан' }}</p>
+      <p class="text-sm text-slate-500">{{ p.client_name|default:"Клиент не указан" }}</p>
       <div class="flex gap-4 mt-4 text-xs text-slate-400">
-        <span>{{ p.files|length }} файлов</span>
-        <span>{{ p.tasks|length }} задач</span>
-        <span>{{ p.comments|length }} комментариев</span>
+        <span>{{ p.files.count }} файлов</span>
+        <span>{{ p.tasks.count }} задач</span>
+        <span>{{ p.comments.count }} комментариев</span>
       </div>
     </a>
     {% endfor %}

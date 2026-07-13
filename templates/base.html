@@ -21,17 +21,17 @@
   {% if not hide_nav %}
   <header class="bg-white border-b border-slate-200">
     <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-      <a href="{{ url_for('projects.index') if current_user else url_for('auth.login') }}"
+      <a href="{% if user.is_authenticated %}{% url 'index' %}{% else %}{% url 'login' %}{% endif %}"
          class="font-semibold text-slate-900 flex items-center gap-2">
         <span class="inline-block w-6 h-6 rounded-md bg-brand"></span> ClientDesk
       </a>
-      {% if current_user %}
+      {% if user.is_authenticated %}
       <div class="flex items-center gap-4 text-sm">
-        <span class="text-slate-500">{{ current_user.workspace.name }}</span>
+        <span class="text-slate-500">{{ workspace.name }}</span>
         <span class="text-slate-400">·</span>
-        <span>{{ current_user.name }}</span>
-        <form method="post" action="{{ url_for('auth.logout') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span>{{ user.first_name|default:user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
           <button class="text-slate-500 hover:text-brand">Выйти</button>
         </form>
       </div>
@@ -41,15 +41,13 @@
   {% endif %}
 
   <main class="max-w-6xl mx-auto px-4 py-8">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, msg in messages %}
-      <div class="mb-4 px-4 py-3 rounded-lg text-sm
-                  {{ 'bg-red-50 text-red-700 border border-red-200' if category == 'error'
-                     else 'bg-emerald-50 text-emerald-700 border border-emerald-200' }}">
-        {{ msg }}
-      </div>
-      {% endfor %}
-    {% endwith %}
+    {% for m in messages %}
+    <div class="mb-4 px-4 py-3 rounded-lg text-sm
+                {% if m.tags == 'error' %}bg-red-50 text-red-700 border border-red-200
+                {% else %}bg-emerald-50 text-emerald-700 border border-emerald-200{% endif %}">
+      {{ m }}
+    </div>
+    {% endfor %}
     {% block content %}{% endblock %}
   </main>
   {% block scripts %}{% endblock %}

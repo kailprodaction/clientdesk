@@ -1,26 +1,25 @@
 {% extends "base.html" %}
+{% load clientdesk_extras %}
 {% block title %}{{ project.name }} — ClientDesk{% endblock %}
-{% set status_labels = {'todo':'Todo','in_progress':'In Progress','review':'Review','done':'Done'} %}
 {% block content %}
 <div class="mb-6">
-  <a href="{{ url_for('projects.index') }}" class="text-sm text-slate-400 hover:text-brand">← Все проекты</a>
+  <a href="{% url 'index' %}" class="text-sm text-slate-400 hover:text-brand">← Все проекты</a>
   <div class="flex flex-wrap items-center justify-between gap-3 mt-2">
     <div>
       <h1 class="text-2xl font-semibold text-slate-900">{{ project.name }}</h1>
-      <p class="text-slate-500 text-sm">{{ project.client_name or 'Клиент не указан' }}{% if project.deadline %} · дедлайн {{ project.deadline.strftime('%d.%m.%Y') }}{% endif %}</p>
+      <p class="text-slate-500 text-sm">{{ project.client_name|default:"Клиент не указан" }}{% if project.deadline %} · дедлайн {{ project.deadline|date:"d.m.Y" }}{% endif %}</p>
     </div>
     <div class="flex items-center gap-2">
-      <form method="post" action="{{ url_for('projects.update_status', project_id=project.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <form method="post" action="{% url 'project_status' project.id %}">
+        {% csrf_token %}
         <select name="status" onchange="this.form.submit()" class="text-sm rounded-lg border border-slate-300 px-2 py-1.5">
-          {% for val, label in {'active':'В работе','on_hold':'На паузе','done':'Завершён'}.items() %}
-          <option value="{{ val }}" {{ 'selected' if project.status==val }}>{{ label }}</option>
-          {% endfor %}
+          <option value="active" {% if project.status == 'active' %}selected{% endif %}>В работе</option>
+          <option value="on_hold" {% if project.status == 'on_hold' %}selected{% endif %}>На паузе</option>
+          <option value="done" {% if project.status == 'done' %}selected{% endif %}>Завершён</option>
         </select>
       </form>
-      <form method="post" action="{{ url_for('projects.delete', project_id=project.id) }}"
-            onsubmit="return confirm('Удалить проект и все его данные?')">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <form method="post" action="{% url 'project_delete' project.id %}" onsubmit="return confirm('Удалить проект и все его данные?')">
+        {% csrf_token %}
         <button class="text-sm text-slate-400 hover:text-red-600 px-2 py-1.5">Удалить</button>
       </form>
     </div>
@@ -30,12 +29,10 @@
 <div class="grid lg:grid-cols-3 gap-6">
   <!-- Левая колонка: файлы + клиентские ссылки -->
   <div class="space-y-6">
-    <!-- Файлы -->
     <section class="bg-white border border-slate-200 rounded-xl p-5">
       <h2 class="font-semibold text-slate-900 mb-3">Файлы</h2>
-      <form method="post" action="{{ url_for('projects.upload_file', project_id=project.id) }}"
-            enctype="multipart/form-data" class="mb-4">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <form method="post" action="{% url 'file_upload' project.id %}" enctype="multipart/form-data" class="mb-4">
+        {% csrf_token %}
         <div class="flex gap-2">
           <input type="file" name="file" required
                  class="flex-1 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-light file:text-brand file:px-3 file:py-1.5 file:text-sm">
@@ -43,18 +40,17 @@
         </div>
         <p class="text-xs text-slate-400 mt-1">PNG, JPG, GIF, WEBP, SVG, PDF — до 25 МБ</p>
       </form>
-      {% if project.files %}
+      {% if project.files.all %}
       <ul class="space-y-2">
-        {% for f in project.files %}
+        {% for f in project.files.all %}
         <li class="flex items-center justify-between gap-2 text-sm">
-          <a href="{{ url_for('projects.file_view', project_id=project.id, file_id=f.id) }}"
-             class="flex items-center gap-2 text-slate-700 hover:text-brand truncate">
-            <span class="text-slate-400">{{ '🖼' if f.is_image else '📄' }}</span>
+          <a href="{% url 'file_view' project.id f.id %}" class="flex items-center gap-2 text-slate-700 hover:text-brand truncate">
+            <span class="text-slate-400">{% if f.is_image %}🖼{% else %}📄{% endif %}</span>
             <span class="truncate">{{ f.filename }}</span>
-            <span class="text-xs text-slate-400 shrink-0">{{ f.comments|length }} 💬</span>
+            <span class="text-xs text-slate-400 shrink-0">{{ f.comments.count }} 💬</span>
           </a>
-          <form method="post" action="{{ url_for('projects.delete_file', project_id=project.id, file_id=f.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <form method="post" action="{% url 'file_delete' project.id f.id %}">
+            {% csrf_token %}
             <button class="text-slate-300 hover:text-red-500">✕</button>
           </form>
         </li>
@@ -65,44 +61,40 @@
       {% endif %}
     </section>
 
-    <!-- Клиентские ссылки -->
     <section class="bg-white border border-slate-200 rounded-xl p-5">
       <h2 class="font-semibold text-slate-900 mb-1">Клиентский доступ</h2>
       <p class="text-xs text-slate-400 mb-3">Ссылка без регистрации: клиент смотрит прогресс и комментирует.</p>
-      <form method="post" action="{{ url_for('projects.create_link', project_id=project.id) }}" class="flex gap-2 mb-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <form method="post" action="{% url 'link_create' project.id %}" class="flex gap-2 mb-3">
+        {% csrf_token %}
         <input name="label" placeholder="Метка (напр. Иван, клиент)" class="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
         <button class="bg-slate-900 text-white rounded-lg px-3 py-1.5 text-sm">Создать</button>
       </form>
-      {% for link in project.links %}
+      {% for link in project.links.all %}
       <div class="flex items-center gap-2 mb-2" x-data="{ copied:false }">
-        <input readonly value="{{ url_for('client.portal', token=link.token, _external=True) }}"
+        <input readonly value="{{ request.scheme }}://{{ request.get_host }}{% url 'client_portal' link.token %}"
                class="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-500 truncate">
         <button @click="navigator.clipboard.writeText($el.previousElementSibling.value); copied=true; setTimeout(()=>copied=false,1500)"
                 class="text-xs text-brand shrink-0" x-text="copied ? 'Скопировано' : 'Копировать'"></button>
-        <form method="post" action="{{ url_for('projects.revoke_link', project_id=project.id, link_id=link.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <form method="post" action="{% url 'link_revoke' project.id link.id %}">
+          {% csrf_token %}
           <button class="text-xs text-slate-300 hover:text-red-500">✕</button>
         </form>
       </div>
-      {% else %}
+      {% empty %}
       <p class="text-sm text-slate-400">Ссылок пока нет.</p>
       {% endfor %}
     </section>
   </div>
 
-  <!-- Правая часть: Kanban + AI-отчёты -->
+  <!-- Правая часть: Kanban + AI -->
   <div class="lg:col-span-2 space-y-6">
-    <!-- Kanban -->
-    <section class="bg-white border border-slate-200 rounded-xl p-5"
-             x-data="kanban()">
+    <section class="bg-white border border-slate-200 rounded-xl p-5" x-data="kanban()">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-semibold text-slate-900">Задачи</h2>
         <button @click="showForm = !showForm" class="text-sm text-brand">+ Задача</button>
       </div>
-      <form x-show="showForm" x-cloak method="post" action="{{ url_for('projects.create_task', project_id=project.id) }}"
-            class="flex gap-2 mb-4">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <form x-show="showForm" x-cloak method="post" action="{% url 'task_create' project.id %}" class="flex gap-2 mb-4">
+        {% csrf_token %}
         <input name="title" required placeholder="Что нужно сделать?" class="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
         <input name="assignee" placeholder="Кто" class="w-28 rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
         <button class="bg-brand text-white rounded-lg px-3 py-1.5 text-sm">Добавить</button>
@@ -111,13 +103,13 @@
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         {% for s in statuses %}
         <div class="bg-slate-50 rounded-lg p-2 min-h-[120px]"
-             @drop.prevent="drop($event, '{{ s }}')" @dragover.prevent @dragenter.prevent="$el.classList.add('ring-2','ring-brand')" @dragleave="$el.classList.remove('ring-2','ring-brand')">
-          <div class="text-xs font-medium text-slate-500 mb-2 px-1">{{ status_labels[s] }}
-            <span class="text-slate-300">{{ tasks_by_status[s]|length }}</span></div>
-          {% for t in tasks_by_status[s] %}
+             @drop.prevent="drop($event, '{{ s }}')" @dragover.prevent
+             @dragenter.prevent="$el.classList.add('ring-2','ring-brand')" @dragleave="$el.classList.remove('ring-2','ring-brand')">
+          <div class="text-xs font-medium text-slate-500 mb-2 px-1">{{ s|task_label }}
+            <span class="text-slate-300">{{ tasks_by_status|get_item:s|length }}</span></div>
+          {% for t in tasks_by_status|get_item:s %}
           <div draggable="true" @dragstart="dragId={{ t.id }}"
-               class="bg-white border border-slate-200 rounded-lg p-2 mb-2 text-sm cursor-move hover:border-brand group"
-               data-task="{{ t.id }}">
+               class="bg-white border border-slate-200 rounded-lg p-2 mb-2 text-sm cursor-move hover:border-brand group" data-task="{{ t.id }}">
             <div class="flex justify-between items-start gap-1">
               <span>{{ t.title }}</span>
               <button @click="del({{ t.id }}, $el.closest('[data-task]'))" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100">✕</button>
@@ -130,7 +122,6 @@
       </div>
     </section>
 
-    <!-- AI: статус-отчёты и feedback summary -->
     <section class="bg-white border border-slate-200 rounded-xl p-5" x-data="feedback()">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-semibold text-slate-900">Клиенту</h2>
@@ -138,8 +129,8 @@
           <button @click="summarize()" :disabled="loading"
                   class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 hover:border-brand disabled:opacity-50"
                   x-text="loading ? 'Собираю…' : 'AI: разобрать фидбек'"></button>
-          <form method="post" action="{{ url_for('ai.generate_report', project_id=project.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <form method="post" action="{% url 'report_generate' project.id %}">
+            {% csrf_token %}
             <button class="text-sm bg-brand text-white rounded-lg px-3 py-1.5">AI: статус-отчёт</button>
           </form>
         </div>
@@ -154,8 +145,8 @@
       <div id="report-{{ r.id }}" x-data="{ edit:false }" class="border border-slate-200 rounded-lg p-4 mb-3">
         <div class="flex items-center justify-between mb-2">
           <div class="text-sm font-medium text-slate-700">{{ r.period }}
-            <span class="text-xs px-2 py-0.5 rounded-full ml-1 {{ 'bg-indigo-100 text-brand' if r.generated_by=='ai' else 'bg-slate-100 text-slate-500' }}">
-              {{ 'Claude' if r.generated_by=='ai' else 'офлайн' }}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full ml-1 {% if r.generated_by == 'ai' %}bg-indigo-100 text-brand{% else %}bg-slate-100 text-slate-500{% endif %}">
+              {% if r.generated_by == 'ai' %}Claude{% else %}офлайн{% endif %}</span>
             {% if r.sent_at %}<span class="text-xs text-emerald-600 ml-1">✓ отправлен</span>{% endif %}
           </div>
           <button @click="edit=!edit" class="text-xs text-brand" x-text="edit ? 'Отмена' : 'Редактировать'"></button>
@@ -163,19 +154,19 @@
         <div x-show="!edit">
           <pre class="whitespace-pre-wrap text-sm text-slate-600 font-sans">{{ r.content }}</pre>
           {% if not r.sent_at %}
-          <form method="post" action="{{ url_for('ai.send_report', report_id=r.id) }}" class="mt-3">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <form method="post" action="{% url 'report_send' r.id %}" class="mt-3">
+            {% csrf_token %}
             <button class="text-sm bg-emerald-600 text-white rounded-lg px-3 py-1.5">Отправить клиенту</button>
           </form>
           {% endif %}
         </div>
-        <form x-show="edit" x-cloak method="post" action="{{ url_for('ai.update_report', report_id=r.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <form x-show="edit" x-cloak method="post" action="{% url 'report_update' r.id %}">
+          {% csrf_token %}
           <textarea name="content" rows="8" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">{{ r.content }}</textarea>
           <button class="mt-2 text-sm bg-brand text-white rounded-lg px-3 py-1.5">Сохранить</button>
         </form>
       </div>
-      {% else %}
+      {% empty %}
       <p class="text-sm text-slate-400">Отчётов ещё нет. Нажмите «AI: статус-отчёт» — Claude соберёт закрытые задачи в письмо клиенту.</p>
       {% endfor %}
     </section>
@@ -189,23 +180,21 @@
 
   function kanban() {
     return {
-      dragId: null,
-      showForm: false,
+      dragId: null, showForm: false,
       async drop(e, status) {
         e.currentTarget.classList.remove('ring-2','ring-brand');
         if (!this.dragId) return;
         const card = document.querySelector(`[data-task="${this.dragId}"]`);
         if (card) e.currentTarget.appendChild(card);
         await fetch(`/api/tasks/${this.dragId}/move`, {
-          method:'POST',
-          headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF},
+          method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
           body: JSON.stringify({ status })
         });
         this.dragId = null;
       },
       async del(id, el) {
         if (!confirm('Удалить задачу?')) return;
-        await fetch(`/api/tasks/${id}/delete`, { method:'POST', headers:{'X-CSRF-Token':CSRF} });
+        await fetch(`/api/tasks/${id}/delete`, { method:'POST', headers:{'X-CSRFToken':CSRF} });
         el.remove();
       }
     }
@@ -217,11 +206,8 @@
       async summarize() {
         this.loading = true;
         try {
-          const r = await fetch(`{{ url_for('ai.feedback_summary', project_id=project.id) }}`, {
-            method:'POST', headers:{'X-CSRF-Token':CSRF}
-          });
-          const data = await r.json();
-          this.summary = data.content;
+          const r = await fetch(`{% url 'feedback_summary' project.id %}`, { method:'POST', headers:{'X-CSRFToken':CSRF} });
+          this.summary = (await r.json()).content;
         } finally { this.loading = false; }
       }
     }

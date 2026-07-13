@@ -4,5 +4,7 @@ __pycache__/
 venv/
 .env
 clientdesk.db
+*.sqlite3
 uploads/
+staticfiles/
 .pytest_cache/

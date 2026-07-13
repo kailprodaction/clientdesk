@@ -1,21 +1,25 @@
-# ClientDesk (локальный MVP)
+# ClientDesk (Django MVP)
 
 AI-портал для фрилансеров и небольших агентств: проекты, файлы, **точечные комментарии
 на макете**, Kanban-задачи, клиентский view по magic-link и **AI-статус-отчёты через Claude**.
 
-Это работающий локальный MVP по спецификации из `project_clientdesk.md`. Продакшн-стек из спеки
-(Supabase, Cloud Run, Stripe, Resend, Sentry) заменён на локальные аналоги, чтобы приложение
-запускалось одной командой без внешних аккаунтов:
+Работающий локальный MVP по спецификации `project_clientdesk.md`, реализованный на **Django**
+(фронт — Django-шаблоны + Tailwind/Alpine по CDN, бэк — Django views + ORM). Продакшн-стек
+из спеки (Supabase, Cloud Run, Stripe, Resend, Sentry) заменён локальными аналогами, чтобы
+приложение запускалось одной командой без внешних аккаунтов:
 
-| В спецификации          | В этом MVP                                   |
-|-------------------------|----------------------------------------------|
-| Supabase Postgres + RLS | SQLite + изоляция workspace на уровне запросов |
-| Supabase Auth           | Сессии Flask + хэш пароля (Werkzeug)          |
-| Supabase Storage        | Локальная папка `uploads/`                    |
-| Supabase Realtime       | Лёгкий polling комментариев на фронте          |
-| Cloud Tasks / Scheduler | Синхронная генерация отчётов                    |
-| Stripe / Resend / Sentry| Не подключены (заглушки)                        |
+| В спецификации          | В этом MVP                                        |
+|-------------------------|---------------------------------------------------|
+| Supabase Postgres + RLS | SQLite + изоляция workspace на уровне запросов      |
+| Supabase Auth           | `django.contrib.auth` (email = username) + Profile |
+| Supabase Storage        | Локальная папка `uploads/` (FileResponse)          |
+| Supabase Realtime       | Лёгкий polling комментариев на фронте               |
+| Cloud Tasks / Scheduler | Синхронная генерация отчётов                         |
+| Stripe / Resend / Sentry| Не подключены (заглушки)                             |
 | **Claude API**          | **Реальный вызов**, если задан `ANTHROPIC_API_KEY`; иначе офлайн-фолбэк |
+
+> История: первая версия MVP была на Flask (см. git-историю, коммит `12e9991`); затем
+> переписана на Django по запросу.
 
 ## Запуск
 
@@ -27,23 +31,25 @@ python -m venv .venv
 # source .venv/bin/activate
 
 pip install -r requirements.txt
-cp .env.example .env        # опционально: впишите ANTHROPIC_API_KEY
-python run.py
+cp .env.example .env            # опционально: впишите ANTHROPIC_API_KEY
+
+python manage.py migrate
+python manage.py runserver
 ```
 
-Откройте http://127.0.0.1:5000 → зарегистрируйтесь → создайте проект.
+Откройте http://127.0.0.1:8000 → зарегистрируйтесь → создайте проект.
 
 ## Как попробовать все фичи
 
 1. **Проект** — создайте, укажите клиента и дедлайн.
 2. **Файл** — загрузите изображение (PNG/JPG) на странице проекта.
-3. **Точечные комментарии** — откройте файл, кликните по макету → оставьте пин с тредом.
-   Координаты хранятся в процентах, поэтому пины корректны на любом экране.
+3. **Точечные комментарии** — откройте файл, кликните по макету → пин с тредом.
+   Координаты хранятся в процентах, поэтому корректны на любом экране.
 4. **Kanban** — добавьте задачи и перетаскивайте карточки между колонками (drag-and-drop).
-5. **Клиентский доступ** — создайте magic-link, откройте его в приватном окне: клиент видит
-   прогресс и может комментировать без регистрации.
-6. **AI-статус-отчёт** — «AI: статус-отчёт» собирает закрытые/текущие задачи в письмо клиенту.
-   Отредактируйте и «Отправить» → отчёт появится в клиентском портале.
+5. **Клиентский доступ** — создайте magic-link, откройте в приватном окне: клиент видит
+   прогресс и комментирует без регистрации.
+6. **AI-статус-отчёт** — «AI: статус-отчёт» собирает задачи в письмо клиенту → отредактируйте
+   → «Отправить» → отчёт появится в клиентском портале.
 7. **AI: разобрать фидбек** — группирует открытые комментарии клиента в actionable-чеклист.
 
 Без `ANTHROPIC_API_KEY` пункты 6–7 работают в детерминированном офлайн-режиме.
@@ -51,16 +57,18 @@ python run.py
 ## Структура
 
 ```
-app/
-├── __init__.py     # фабрика приложения, регистрация блюпринтов
-├── config.py       # конфиг через env
-├── extensions.py   # SQLAlchemy
-├── models.py       # workspaces, users, projects, files, comments, tasks, links, reports
-├── security.py     # login_required, CSRF
-├── auth/           # регистрация / вход
-├── projects/       # проекты, файлы, задачи, клиентские ссылки
-├── comments/       # JSON API точечных комментариев (member + client)
-├── ai/             # Claude: статус-отчёт и summary фидбека
-├── client/         # клиентский портал по magic-link
-└── templates/      # Jinja2 + Tailwind (CDN) + Alpine.js (CDN)
+manage.py
+clientdesk/          # проект Django: settings, urls, wsgi
+core/
+├── models.py        # workspace/profile, project, file, comment, task, link, report
+├── views.py         # все представления + изоляция арендаторов
+├── urls.py          # маршруты
+├── ai.py            # Claude: статус-отчёт и summary фидбека (+офлайн-фолбэк)
+├── context.py       # workspace текущего пользователя в шаблонах
+├── admin.py         # админка Django
+└── templatetags/    # фильтры для шаблонов
+templates/           # base, auth, projects, file_view, client portal
 ```
+
+Админка Django доступна на `/admin/` (создайте суперпользователя:
+`python manage.py createsuperuser`).
