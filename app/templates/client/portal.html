@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — портал клиента{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center gap-2 mb-6 text-sm text-slate-400">
+    <span class="inline-block w-5 h-5 rounded bg-brand"></span> ClientDesk · портал клиента
+  </div>
+
+  <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6">
+    <span class="text-xs font-medium px-2 py-0.5 rounded-full
+          {{ 'bg-emerald-100 text-emerald-700' if project.status=='active'
+             else 'bg-amber-100 text-amber-700' if project.status=='on_hold'
+             else 'bg-slate-100 text-slate-600' }}">
+      {{ {'active':'В работе','on_hold':'На паузе','done':'Завершён'}[project.status] }}
+    </span>
+    <h1 class="text-2xl font-semibold text-slate-900 mt-2">{{ project.name }}</h1>
+    {% if project.deadline %}<p class="text-slate-500 text-sm">Дедлайн: {{ project.deadline.strftime('%d.%m.%Y') }}</p>{% endif %}
+  </div>
+
+  <!-- Прогресс по задачам -->
+  {% set done = project.tasks|selectattr('status','equalto','done')|list %}
+  <div class="grid sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="text-2xl font-semibold text-slate-900">{{ done|length }}/{{ project.tasks|length }}</div>
+      <div class="text-sm text-slate-500">задач готово</div>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="text-2xl font-semibold text-slate-900">{{ project.files|length }}</div>
+      <div class="text-sm text-slate-500">материалов</div>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="text-2xl font-semibold text-slate-900">{{ sent_reports|length }}</div>
+      <div class="text-sm text-slate-500">статус-отчётов</div>
+    </div>
+  </div>
+
+  <!-- Материалы -->
+  <section class="bg-white border border-slate-200 rounded-xl p-6 mb-6">
+    <h2 class="font-semibold text-slate-900 mb-3">Материалы на согласование</h2>
+    {% if project.files %}
+    <ul class="divide-y divide-slate-100">
+      {% for f in project.files %}
+      <li>
+        <a href="{{ url_for('client.file_view', token=token, file_id=f.id) }}"
+           class="flex items-center justify-between py-3 hover:text-brand">
+          <span class="flex items-center gap-2 text-slate-700">
+            <span>{{ '🖼' if f.is_image else '📄' }}</span> {{ f.filename }}
+          </span>
+          <span class="text-sm text-slate-400">{{ f.comments|length }} комментариев · открыть →</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-slate-400">Материалы появятся здесь.</p>
+    {% endif %}
+  </section>
+
+  <!-- Статус-отчёты -->
+  {% if sent_reports %}
+  <section class="bg-white border border-slate-200 rounded-xl p-6">
+    <h2 class="font-semibold text-slate-900 mb-3">Статус от команды</h2>
+    {% for r in sent_reports %}
+    <div class="border-b border-slate-100 last:border-0 py-3">
+      <div class="text-sm font-medium text-slate-500 mb-1">{{ r.period }}</div>
+      <pre class="whitespace-pre-wrap text-sm text-slate-700 font-sans">{{ r.content }}</pre>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

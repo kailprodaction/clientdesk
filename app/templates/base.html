@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ClientDesk{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { brand: { DEFAULT: '#4f46e5', dark: '#4338ca', light: '#eef2ff' } },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 font-sans antialiased">
+  {% if not hide_nav %}
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="{{ url_for('projects.index') if current_user else url_for('auth.login') }}"
+         class="font-semibold text-slate-900 flex items-center gap-2">
+        <span class="inline-block w-6 h-6 rounded-md bg-brand"></span> ClientDesk
+      </a>
+      {% if current_user %}
+      <div class="flex items-center gap-4 text-sm">
+        <span class="text-slate-500">{{ current_user.workspace.name }}</span>
+        <span class="text-slate-400">·</span>
+        <span>{{ current_user.name }}</span>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="text-slate-500 hover:text-brand">Выйти</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+  {% endif %}
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, msg in messages %}
+      <div class="mb-4 px-4 py-3 rounded-lg text-sm
+                  {{ 'bg-red-50 text-red-700 border border-red-200' if category == 'error'
+                     else 'bg-emerald-50 text-emerald-700 border border-emerald-200' }}">
+        {{ msg }}
+      </div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+clientdesk.db
+uploads/
+.pytest_cache/

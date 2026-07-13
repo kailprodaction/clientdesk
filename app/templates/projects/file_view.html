@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ file.filename }} — ClientDesk{% endblock %}
+{% block content %}
+<div class="mb-4">
+  {% if is_client %}
+  <a href="{{ url_for('client.portal', token=token) }}" class="text-sm text-slate-400 hover:text-brand">← Назад к проекту</a>
+  {% else %}
+  <a href="{{ url_for('projects.detail', project_id=project.id) }}" class="text-sm text-slate-400 hover:text-brand">← {{ project.name }}</a>
+  {% endif %}
+  <h1 class="text-xl font-semibold text-slate-900 mt-1">{{ file.filename }}</h1>
+  <p class="text-sm text-slate-500">Кликните по изображению, чтобы оставить точечный комментарий.</p>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6" x-data="reviewer()" x-init="load()">
+  <!-- Холст с изображением/PDF и пинами -->
+  <div class="lg:col-span-2">
+    <div class="relative inline-block bg-white border border-slate-200 rounded-xl overflow-hidden select-none w-full"
+         @click="place($event)" x-ref="stage">
+      {% if file.is_image %}
+      <img src="{{ url_for('projects.raw_file', stored_name=file.stored_name) }}"
+           class="block w-full h-auto pointer-events-none" alt="{{ file.filename }}">
+      {% elif file.is_pdf %}
+      <div class="p-4">
+        <embed src="{{ url_for('projects.raw_file', stored_name=file.stored_name) }}#toolbar=0"
+               type="application/pdf" class="w-full" style="height:70vh">
+        <p class="text-xs text-slate-400 mt-2">Для PDF точечные пины ставятся поверх области документа.</p>
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-slate-400">
+        Предпросмотр недоступен. <a class="text-brand" href="{{ url_for('projects.raw_file', stored_name=file.stored_name) }}">Скачать файл</a>
+      </div>
+      {% endif %}
+
+      <!-- Пины -->
+      <template x-for="(c, i) in pins" :key="c.id">
+        <button class="absolute -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full text-xs font-semibold text-white shadow-lg flex items-center justify-center ring-2 ring-white"
+                :class="c.resolved ? 'bg-emerald-500' : (active===c.id ? 'bg-brand-dark' : 'bg-brand')"
+                :style="`left:${c.x}%; top:${c.y}%`"
+                @click.stop="active = c.id" x-text="i+1"></button>
+      </template>
+
+      <!-- Черновик нового пина -->
+      <template x-if="draft">
+        <div class="absolute -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-amber-400 ring-2 ring-white shadow-lg"
+             :style="`left:${draft.x}%; top:${draft.y}%`"></div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Панель тредов -->
+  <div class="space-y-3">
+    <!-- Форма нового комментария -->
+    <div x-show="draft" x-cloak class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <div class="text-sm font-medium text-amber-800 mb-2">Новый комментарий</div>
+      <textarea x-model="draftBody" rows="3" placeholder="Что не так с этим местом?"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
+      <div class="flex gap-2 mt-2">
+        <button @click="submitPin()" class="bg-brand text-white rounded-lg px-3 py-1.5 text-sm">Оставить</button>
+        <button @click="draft=null; draftBody=''" class="text-slate-500 text-sm px-2">Отмена</button>
+      </div>
+    </div>
+
+    <template x-for="(c, i) in pins" :key="c.id">
+      <div class="bg-white border rounded-xl p-4"
+           :class="active===c.id ? 'border-brand shadow-sm' : 'border-slate-200'"
+           @click="active = c.id">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full bg-brand text-white text-xs flex items-center justify-center" x-text="i+1"></span>
+            <span class="text-sm font-medium" x-text="c.author_name"></span>
+            <span class="text-xs px-1.5 py-0.5 rounded"
+                  :class="c.author_type==='client' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'"
+                  x-text="c.author_type==='client' ? 'клиент' : 'команда'"></span>
+          </div>
+          {% if not is_client %}
+          <button @click.stop="resolve(c)" class="text-xs" :class="c.resolved ? 'text-emerald-600' : 'text-slate-400 hover:text-emerald-600'"
+                  x-text="c.resolved ? '✓ решено' : 'решить'"></button>
+          {% endif %}
+        </div>
+        <p class="text-sm text-slate-700" x-text="c.body"></p>
+        <div class="text-xs text-slate-400 mt-1" x-text="c.created_at"></div>
+
+        <!-- Ответы -->
+        <div class="mt-3 space-y-2 pl-3 border-l-2 border-slate-100" x-show="c.replies.length">
+          <template x-for="r in c.replies" :key="r.id">
+            <div>
+              <div class="text-xs"><span class="font-medium" x-text="r.author_name"></span>
+                <span class="text-slate-400" x-text="r.created_at"></span></div>
+              <p class="text-sm text-slate-600" x-text="r.body"></p>
+            </div>
+          </template>
+        </div>
+
+        <div x-show="active===c.id" x-cloak class="mt-3 flex gap-2">
+          <input x-model="replyBody[c.id]" @keydown.enter="reply(c)" placeholder="Ответить…"
+                 class="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+          <button @click="reply(c)" class="text-brand text-sm">Отпр.</button>
+        </div>
+      </div>
+    </template>
+
+    <p x-show="!pins.length && !draft" class="text-sm text-slate-400 text-center py-6">
+      Пока нет комментариев. Кликните по макету.
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CSRF = document.querySelector('meta[name=csrf-token]').content;
+  const API = "/api/files/{{ file.id }}/comments";
+  const TOKEN = {{ ('"' + token + '"') if is_client else 'null' }};
+
+  function headers() {
+    const h = {'Content-Type':'application/json','X-CSRF-Token':CSRF};
+    if (TOKEN) h['X-Client-Token'] = TOKEN;
+    return h;
+  }
+
+  function reviewer() {
+    return {
+      pins: [], active: null, draft: null, draftBody: '', replyBody: {},
+      async load() {
+        const url = TOKEN ? `${API}?token=${TOKEN}` : API;
+        const r = await fetch(url);
+        this.pins = await r.json();
+        // лёгкий polling вместо Supabase Realtime
+        setInterval(async () => {
+          const rr = await fetch(url);
+          if (rr.ok) this.pins = await rr.json();
+        }, 8000);
+      },
+      place(e) {
+        const rect = this.$refs.stage.getBoundingClientRect();
+        this.draft = {
+          x: ((e.clientX - rect.left) / rect.width) * 100,
+          y: ((e.clientY - rect.top) / rect.height) * 100
+        };
+      },
+      async submitPin() {
+        if (!this.draftBody.trim()) return;
+        const r = await fetch(API, { method:'POST', headers: headers(),
+          body: JSON.stringify({ body:this.draftBody, x:this.draft.x, y:this.draft.y }) });
+        if (r.ok) { const c = await r.json(); this.pins.push(c); this.active = c.id; }
+        this.draft = null; this.draftBody = '';
+      },
+      async reply(c) {
+        const body = (this.replyBody[c.id] || '').trim();
+        if (!body) return;
+        const r = await fetch(API, { method:'POST', headers: headers(),
+          body: JSON.stringify({ body, parent_id: c.id }) });
+        if (r.ok) { const updated = await r.json();
+          const idx = this.pins.findIndex(p => p.id === c.id);
+          if (idx > -1) this.pins[idx] = updated; }
+        this.replyBody[c.id] = '';
+      },
+      async resolve(c) {
+        const r = await fetch(`/api/comments/${c.id}/resolve`, { method:'POST', headers: headers() });
+        if (r.ok) { const d = await r.json(); c.resolved = d.resolved; }
+      }
+    }
+  }
+</script>
+{% endblock %}
